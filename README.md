@@ -4,19 +4,22 @@
   <img src="docs/images/ui-screenshot.png" alt="Web UI: paste a YouTube URL, choose how much to process, optional dry run" width="780">
 </p>
 
-Turn a **YouTube URL** or **local video** into a structured **JSON timeline**: extract audio → **[faster-whisper](https://github.com/SYSTRAN/faster-whisper)** transcription → time-windowed chunks → LLM synthesis via **[OpenRouter](https://openrouter.ai/)**. This repo ships a **`ete` CLI** and a **local-only web UI** (FastAPI + static page). Secrets stay in the server process; the browser never receives your API key.
+**Turn recordings into searchable event timelines** for **QA**, **coaching**, and **risk review**—think **body-worn camera** footage, **contact center** calls, and similar workflows where you need a **structured, time-anchored narrative** from long audio or video, not only a raw transcript.
 
-**Planned doc update:** a side-by-side example (input clip + sample timeline JSON) will be added here later.
+This repo is a **small, hackable pipeline**: **YouTube** or **local files** → **[faster-whisper](https://github.com/SYSTRAN/faster-whisper)** (ASR) → windowed chunks → **[OpenRouter](https://openrouter.ai/)** (LLM) → **JSON timeline**. It ships a **`ete` CLI** and a **local web UI** (FastAPI). More features and integrations are planned; treat this as a **component** you can embed or extend, not a finished platform.
 
-> **GitHub note:** The short repository **Description** field on GitHub is plain text only. The screenshot above lives in this README so it appears on the repository home page.
+**Status:** incomplete as of **2026-03-22** — roadmap includes richer examples (e.g. side-by-side clip + output), exports, and workflow hooks.
+
+> The screenshot above is for the README; GitHub’s short repo **Description** field is plain text only (paste your one-line summary there separately).
 
 ## Highlights
 
 - **CLI**: `ete run --url …` or `--file …` — writes timeline JSON to stdout or `--out`.
-- **Web**: small single-page UI; `POST` hits your machine only; OpenRouter key stays in server env.
+- **Web**: single-page UI on localhost for quick runs; same pipeline as the CLI.
+- **Stack**: Whisper-class ASR + LLM summarization into labeled events with timestamps (see **Timeline accuracy** below).
 - **Transcription**: **faster-whisper** by default (real audio). Set `ETE_TRANSCRIBER=stub` or `ETE_USE_STUB=1` only for tests — that path uses fixed fake lines, not your video.
-- **Speed**: No per-frame JPEG extraction (the LLM only reads transcript text). ASR uses `beam_size=1`, optional VAD, and caches the Whisper model in memory for the web server process.
-- **Safety**: `--dry-run` skips the LLM; `--max-minutes` caps input length.
+- **Speed**: Text-only to the LLM (no frame extraction by default). ASR uses `beam_size=1`, optional VAD, and caches the Whisper model in memory for the web server process.
+- **Safety / dev**: `--dry-run` skips the LLM; `--max-minutes` caps input length.
 
 ## Requirements
 
@@ -120,11 +123,10 @@ ffmpeg -y -i input.mp4 -vf "fps=1/2" -q:v 3 frames/frame_%06d.jpg
 
 Typical workflow: align frames to the same time windows as the transcript, cap how many images you send per request, and pick a multimodal model—then budget for **much higher** token usage than text-only runs. This repo intentionally does **not** wire that up by default.
 
-## Security
+## Security (operational)
 
-- Secrets live in **environment variables** or a local `.env` (gitignored). The repo only ships `.env.example`.
-- The browser never sees `OPENROUTER_API_KEY`; only your FastAPI process does.
-- Logs do not print API keys (see `llm/openrouter.py`).
+- Put LLM credentials in **environment variables** or a local **`.env`** (gitignored); the repo ships **`.env.example`** only.
+- For the web UI, the **API key stays server-side** (the page does not embed secrets). Logs redact keys where applicable (`llm/openrouter.py`).
 
 ## Tests
 
