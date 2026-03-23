@@ -10,8 +10,6 @@ This repo is a **small, hackable pipeline**: **YouTube** or **local files** → 
 
 **Status:** incomplete as of **2026-03-22** — roadmap includes richer examples (e.g. side-by-side clip + output), exports, and workflow hooks.
 
-> The screenshot above is for the README; GitHub’s short repo **Description** field is plain text only (paste your one-line summary there separately).
-
 ## Highlights
 
 - **CLI**: `ete run --url …` or `--file …` — writes timeline JSON to stdout or `--out`.
@@ -125,7 +123,6 @@ Typical workflow: align frames to the same time windows as the transcript, cap h
 
 ## Security (operational)
 
-- Put LLM credentials in **environment variables** or a local **`.env`** (gitignored); the repo ships **`.env.example`** only.
 - For the web UI, the **API key stays server-side** (the page does not embed secrets). Logs redact keys where applicable (`llm/openrouter.py`).
 
 ## Tests
