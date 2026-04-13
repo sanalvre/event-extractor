@@ -9,7 +9,11 @@ from pathlib import Path
 from event_timeline_extractor.chunking import chunk_segments
 from event_timeline_extractor.config import Settings, load_settings
 from event_timeline_extractor.fetch import run_ytdlp_download
-from event_timeline_extractor.ffmpeg_tools import extract_audio_wav_16k_mono, probe_duration_seconds
+from event_timeline_extractor.ffmpeg_tools import (
+    extract_audio_wav_16k_mono,
+    extract_frames_every_interval,
+    probe_duration_seconds,
+)
 from event_timeline_extractor.llm.openrouter import TimelineSynthesizer
 from event_timeline_extractor.schema import TimelineResult
 from event_timeline_extractor.timefmt import download_section_first_seconds
@@ -47,6 +51,34 @@ def resolve_media_path(
             download_sections=section,
         )
     raise ValueError("Provide youtube_url or file_path.")
+
+
+def _run_vision_analysis(
+    media: Path,
+    work_dir: Path,
+    settings: Settings,
+    duration: float,
+) -> dict[float, str]:
+    """Extract frames and run memories-s0 vision analysis. Returns {timestamp → description}."""
+    from event_timeline_extractor.vision.memories_s0 import MemoriesS0Analyzer  # noqa: PLC0415
+
+    interval = float(settings.ete_vision_frame_interval)
+    frames_dir = work_dir / "frames"
+    logger.info("Extracting frames every %gs for visual analysis…", interval)
+    frame_paths = extract_frames_every_interval(media, frames_dir, interval_sec=interval)
+    if not frame_paths:
+        logger.warning("No frames extracted — skipping vision analysis.")
+        return {}
+
+    # Derive timestamps: frame_000001.jpg → t=0, frame_000002.jpg → t=interval, etc.
+    timestamps = [(i * interval) for i in range(len(frame_paths))]
+    # Clamp last timestamp to duration so it doesn't overshoot.
+    timestamps = [min(t, duration) for t in timestamps]
+
+    logger.info("Running memories-s0 on %d frames…", len(frame_paths))
+    analyzer = MemoriesS0Analyzer()
+    descriptions = analyzer.analyze([str(p) for p in frame_paths], timestamps)
+    return {d.timestamp: d.description for d in descriptions}
 
 
 def _merge_meta(base: dict, result: TimelineResult) -> TimelineResult:
@@ -90,13 +122,33 @@ def run_pipeline(
     segments = transcriber.transcribe(wav)
     segments = maybe_apply_diarization(settings, wav, segments)
     full_transcript = " ".join(s.text for s in segments)
-    windows = chunk_segments(segments, window_sec=window_sec)
+
+    vision_map: dict[float, str] = {}
+    if settings.ete_vision_enabled:
+        vision_map = _run_vision_analysis(media, work_dir, settings, duration)
+
+    # Use speaker-aware chunking when the memories.ai transcriber provides diarization,
+    # so windows break at natural speaker turns rather than fixed time boundaries.
+    speaker_aware = (
+        settings.ete_transcriber == "memories"
+        and settings.memories_transcription_speaker
+        and any(s.speaker for s in segments)
+    )
+    windows = chunk_segments(
+        segments,
+        window_sec=window_sec,
+        vision_map=vision_map or None,
+        speaker_aware=speaker_aware,
+    )
 
     synth = TimelineSynthesizer(settings)
     meta_base: dict = {
         "asr_model": settings.ete_whisper_model_size,
+        "transcriber": settings.ete_transcriber,
         "diarization": (settings.ete_diarization or "none").lower().strip(),
         "word_timestamps": settings.ete_whisper_word_timestamps,
+        "vision": settings.ete_vision_enabled,
+        "speaker_aware_chunking": speaker_aware,
     }
     if max_seconds is not None:
         meta_base["processed_seconds_cap"] = max_seconds

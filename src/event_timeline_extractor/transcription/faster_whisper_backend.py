@@ -2,8 +2,15 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from pathlib import Path
+
+# CTranslate2 (used by faster-whisper) ships its own OpenMP runtime.  When
+# another library (e.g. PyTorch or numpy's MKL build) has already loaded a
+# different OpenMP DLL the process crashes with OMP Error #15.  Setting this
+# flag before the first import is the standard workaround.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 from event_timeline_extractor.config import Settings
 from event_timeline_extractor.transcription.base import TranscriptSegment
@@ -55,6 +62,7 @@ class FasterWhisperTranscriber:
             beam_size=self._settings.ete_whisper_beam_size,
             vad_filter=self._settings.ete_whisper_vad,
             word_timestamps=self._settings.ete_whisper_word_timestamps,
+            language=self._settings.ete_whisper_language or None,
         )
         out: list[TranscriptSegment] = []
         for s in segments:

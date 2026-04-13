@@ -13,6 +13,7 @@ class TimeWindow:
     end: float
     text: str
     frame_paths: list[str]
+    vision_context: str = ""
 
 
 def format_mmss(seconds: float) -> str:
@@ -35,11 +36,24 @@ def chunk_segments(
     *,
     window_sec: float = 20.0,
     frame_paths_by_time: dict[float, str] | None = None,
+    vision_map: dict[float, str] | None = None,
+    speaker_aware: bool = False,
 ) -> list[TimeWindow]:
-    """Merge transcript segments into windows of roughly `window_sec` seconds."""
+    """Merge transcript segments into windows of roughly `window_sec` seconds.
+
+    Args:
+        segments: Transcript segments from ASR.
+        window_sec: Target window length in seconds.
+        frame_paths_by_time: Optional map of {timestamp → frame_path} for attaching frames.
+        vision_map: Optional map of {timestamp → description} from visual frame analysis.
+        speaker_aware: When True, also break windows at speaker changes (natural scene
+            boundaries).  Requires segments to carry ``.speaker`` labels.  Long
+            monologues are still split at ``window_sec`` to keep LLM context bounded.
+    """
     if not segments:
         return []
     frame_paths_by_time = frame_paths_by_time or {}
+    vision_map = vision_map or {}
     sorted_seg = sorted(segments, key=lambda s: s.start)
     windows: list[TimeWindow] = []
     cur_start = sorted_seg[0].start
@@ -52,7 +66,10 @@ def chunk_segments(
             return
         text = "\n".join(format_segment_line(s) for s in buf).strip()
         frames = _frames_in_range(frame_paths_by_time, cur_start, buf_end)
-        windows.append(TimeWindow(start=cur_start, end=buf_end, text=text, frame_paths=frames))
+        vis_ctx = _vision_context_in_range(vision_map, cur_start, buf_end)
+        windows.append(
+            TimeWindow(start=cur_start, end=buf_end, text=text, frame_paths=frames, vision_context=vis_ctx)
+        )
         buf = []
 
     for seg in sorted_seg:
@@ -60,7 +77,15 @@ def chunk_segments(
             cur_start = seg.start
             buf_end = seg.start
         potential_end = max(buf_end, seg.end)
-        if buf and potential_end - cur_start > window_sec:
+        # Break on time limit OR (optionally) on speaker change.
+        speaker_changed = (
+            speaker_aware
+            and buf
+            and seg.speaker is not None
+            and buf[-1].speaker is not None
+            and seg.speaker != buf[-1].speaker
+        )
+        if buf and (potential_end - cur_start > window_sec or speaker_changed):
             flush()
             cur_start = seg.start
             buf_end = seg.start
@@ -72,8 +97,24 @@ def chunk_segments(
     if buf:
         text = "\n".join(format_segment_line(s) for s in buf).strip()
         frames = _frames_in_range(frame_paths_by_time, cur_start, buf_end)
-        windows.append(TimeWindow(start=cur_start, end=buf_end, text=text, frame_paths=frames))
+        vis_ctx = _vision_context_in_range(vision_map, cur_start, buf_end)
+        windows.append(
+            TimeWindow(start=cur_start, end=buf_end, text=text, frame_paths=frames, vision_context=vis_ctx)
+        )
     return windows
+
+
+def _vision_context_in_range(
+    vision_map: dict[float, str],
+    start: float,
+    end: float,
+) -> str:
+    """Build a formatted vision context string for timestamps within [start, end]."""
+    lines: list[str] = []
+    for t, desc in sorted(vision_map.items()):
+        if start - 1e-6 <= t <= end + 1e-6:
+            lines.append(f"{format_mmss(t)} — {desc}")
+    return "\n".join(lines)
 
 
 def _frames_in_range(

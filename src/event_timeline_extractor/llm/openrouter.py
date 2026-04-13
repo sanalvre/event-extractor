@@ -51,14 +51,23 @@ class TimelineSynthesizer:
             "- List events in chronological order; prefer one event per distinct utterance "
             "when the transcript breaks into separate lines."
         )
+        has_vision = any(w.vision_context for w in windows)
         user_lines: list[str] = []
         for w in windows:
-            user_lines.append(
-                f"--- Window [{format_mmss(w.start)}–{format_mmss(w.end)}] ---\n{w.text}"
-            )
+            block = f"--- Window [{format_mmss(w.start)}–{format_mmss(w.end)}] ---\n{w.text}"
+            if w.vision_context:
+                block += f"\n[VISUAL CONTEXT]\n{w.vision_context}"
+            user_lines.append(block)
+        vision_hint = (
+            "Where present, [VISUAL CONTEXT] provides frame-level scene descriptions — "
+            "use them to enrich event descriptions when relevant.\n"
+            if has_vision
+            else ""
+        )
         user = (
             "Transcript windows follow. Each line is one segment: [MM:SS] optional_speaker: text.\n"
-            "Extract salient events.\n\n" + "\n\n".join(user_lines)
+            + vision_hint
+            + "Extract salient events.\n\n" + "\n\n".join(user_lines)
         )
 
         payload: dict[str, Any] = {
