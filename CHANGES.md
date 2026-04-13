@@ -4,7 +4,7 @@ All notable changes to the Event Timeline Extractor are documented here.
 
 ---
 
-## [Unreleased]
+## [0.2.0] — 2026-04-13
 
 ### Added — memories.ai Visual Frame Analysis (memories-s0)
 Local, open-source Vision-Language Model (Apache 2.0) from memories.ai.
@@ -114,7 +114,6 @@ Server crashed silently (`OMP Error #15`) when CTranslate2 and another OpenMP ru
 | `tests/unit/test_groq_backend.py` | Construction, file size guard, segment parsing, HTTP mocks |
 | `tests/unit/test_memories_backend.py` | Construction, `_to_segments`, error handling, upload+transcribe flow |
 | `tests/unit/test_chunking_speaker_aware.py` | Speaker splits, same-speaker merging, time-limit override, None-speaker fallback |
-| `tests/unit/test_config_vision.py` | Vision config defaults, env-file loading |
 
 ---
 

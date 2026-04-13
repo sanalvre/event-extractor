@@ -82,9 +82,7 @@ def _run_vision_analysis(
 
 
 def _merge_meta(base: dict, result: TimelineResult) -> TimelineResult:
-    m = dict(result.meta or {})
-    m = {**base, **m}
-    return TimelineResult(events=result.events, meta=m)
+    return TimelineResult(events=result.events, meta={**base, **(result.meta or {})})
 
 
 def run_pipeline(
@@ -123,7 +121,7 @@ def run_pipeline(
     segments = maybe_apply_diarization(settings, wav, segments)
     full_transcript = " ".join(s.text for s in segments)
 
-    vision_map: dict[float, str] = {}
+    vision_map: dict[float, str] | None = None
     if settings.ete_vision_enabled:
         vision_map = _run_vision_analysis(media, work_dir, settings, duration)
 
@@ -137,7 +135,7 @@ def run_pipeline(
     windows = chunk_segments(
         segments,
         window_sec=window_sec,
-        vision_map=vision_map or None,
+        vision_map=vision_map,
         speaker_aware=speaker_aware,
     )
 

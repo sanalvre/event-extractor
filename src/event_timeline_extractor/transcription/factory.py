@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import logging
 
-_MEMORIES_BASE_URL = "https://mavi-backend.memories.ai/serve/api/v2"
-
 from event_timeline_extractor.config import Settings
 from event_timeline_extractor.transcription.base import Transcriber
 from event_timeline_extractor.transcription.faster_whisper_backend import FasterWhisperTranscriber
 from event_timeline_extractor.transcription.stub import StubTranscriber
 
 logger = logging.getLogger(__name__)
+
+_MEMORIES_BASE_URL = "https://mavi-backend.memories.ai/serve/api/v2"
 
 
 def get_transcriber(settings: Settings) -> Transcriber:

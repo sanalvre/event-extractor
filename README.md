@@ -8,14 +8,14 @@
 
 This repo is a **small, hackable pipeline**: **YouTube** or **local files** → **[faster-whisper](https://github.com/SYSTRAN/faster-whisper)** (ASR) → windowed chunks → **[OpenRouter](https://openrouter.ai/)** (LLM) → **JSON timeline**. It ships a **`ete` CLI** and a **local web UI** (FastAPI). More features and integrations are planned; treat this as a **component** you can embed or extend, not a finished platform.
 
-**Status:** incomplete as of **2026-03-22** — roadmap includes richer examples (e.g. side-by-side clip + output), exports, and workflow hooks.
+**Status:** in progress as of **2026-04-13** — roadmap includes richer examples (e.g. side-by-side clip + output), exports, and workflow hooks.
 
 ## Highlights
 
 - **CLI**: `ete run --url …` or `--file …` — writes timeline JSON to stdout or `--out`.
 - **Web**: single-page UI on localhost for quick runs; same pipeline as the CLI.
 - **Stack**: Whisper-class ASR + LLM summarization into labeled events with timestamps (see **Timeline accuracy** below).
-- **Transcription**: **faster-whisper** by default (real audio). Set `ETE_TRANSCRIBER=stub` or `ETE_USE_STUB=1` only for tests — that path uses fixed fake lines, not your video.
+- **Transcription**: **faster-whisper** by default (local). Swap to **Groq** (`ETE_TRANSCRIBER=groq`, ~189× real-time) or **memories.ai** (`ETE_TRANSCRIBER=memories`, built-in speaker diarization) via `.env`. Set `ETE_TRANSCRIBER=stub` only for tests.
 - **Speed**: Text-only to the LLM (no frame extraction by default). ASR uses `beam_size=1`, optional VAD, and caches the Whisper model in memory for the web server process.
 - **Safety / dev**: `--dry-run` skips the LLM; `--max-minutes` caps input length.
 
@@ -73,21 +73,22 @@ ete run --file clip.mp4 --dry-run
 
 Bind to localhost only by default.
 
-**Stable server (recommended for real runs)** — avoids `net::ERR_CONNECTION_RESET` / “Failed to fetch” during long jobs:
+**Recommended launcher** — sets the OpenMP fix automatically and avoids `net::ERR_CONNECTION_RESET` during long jobs:
 
 ```bash
-python -m uvicorn event_timeline_extractor.web.app:app --host 127.0.0.1 --port 8766
+python serve.py
+python serve.py --port 8765 --host 127.0.0.1
 ```
 
-Do **not** use `--reload` while processing full videos: the file watcher can **restart the process** mid-request and the browser sees a **connection reset**. Use `--reload` only when editing code, or exclude noisy paths, e.g.:
+Or invoke uvicorn directly:
 
 ```bash
-python -m uvicorn event_timeline_extractor.web.app:app --host 127.0.0.1 --port 8766 --reload --reload-exclude "*__pycache__*" --reload-exclude "*.pyc"
+python -m uvicorn event_timeline_extractor.web.app:app --host 127.0.0.1 --port 8765
 ```
 
-On Windows: `scripts\\run-web.ps1` starts the stable server; `scripts\\stop-web.ps1` frees ports **8765–8768** if old uvicorn processes are stuck.
+Do **not** use `--reload` while processing full videos: the file watcher can **restart the process** mid-request and the browser sees a **connection reset**. Use `--reload` only when editing code.
 
-Open `http://127.0.0.1:8766/` (or your chosen port). Paste an **https** YouTube link. Choose **how much of the video** to process (full length, presets, or custom seconds). Use **Dry run** to skip OpenRouter.
+Open `http://127.0.0.1:8765/` (or your chosen port). Paste an **https** YouTube link. Choose **how much of the video** to process (full length, presets, or custom seconds). Use **Dry run** to skip OpenRouter.
 
 `GET /api/health` returns `{"ok":true}` if the server is responding.
 
@@ -100,7 +101,7 @@ Open `http://127.0.0.1:8766/` (or your chosen port). Paste an **https** YouTube 
 | `ERR_CONNECTION_REFUSED` on `:8766` | **Nothing is listening** on that port — the **server is not running** (or it exited). Start it again and keep the terminal/window open. |
 | `ERR_CONNECTION_RESET` | Connection dropped mid-request — often **`--reload`** restarting the process; use a server **without** `--reload` (see above). |
 
-**Easiest way to run the server (Windows):** double‑click **`run-web.bat`** in the project folder. Leave that **black window open** while you use Chrome. If you close it, `ERR_CONNECTION_REFUSED` will happen.
+**Easiest way to run the server (Windows):** run `python serve.py` in a terminal and leave that window open while you use Chrome. If you close it, `ERR_CONNECTION_REFUSED` will happen.
 
 If you still see **“Failed to fetch”** after fixing **connection refused** / **reset** (above): restart uvicorn **without** `--reload`, confirm **`/api/health`**, use **Chrome or Edge** (not a preview panel), and try a **short clip** or **Dry run** first.
 
@@ -108,18 +109,28 @@ The page title uses **Instrument Serif** (Google Fonts); body text uses **DM San
 
 Do not expose this port to the internet without authentication.
 
-## Future: vision / multimodal (not implemented)
+## Transcription backends
 
-This project feeds the LLM **transcript text only** to keep latency and **token cost** down. Image or video frames are **not** sent to the model.
+| Backend | Set in `.env` | Notes |
+|---|---|---|
+| `faster_whisper` | `ETE_TRANSCRIBER=faster_whisper` | Default. Local, no API key. |
+| `groq` | `ETE_TRANSCRIBER=groq` + `GROQ_API_KEY=gsk_…` | Whisper Large v3 at ~189× real-time. Free tier. 25 MB file limit — use `--max-seconds`. |
+| `memories` | `ETE_TRANSCRIBER=memories` + `MEMORIES_API_KEY=sk-mai-…` | Cloud transcription with built-in speaker diarization. No pyannote needed. |
 
-If you later add a vision-capable model (e.g. via OpenRouter), you can **sample frames with ffmpeg** from a local file and pass those images into the API alongside text—for example:
+When `ETE_TRANSCRIBER=memories` and speaker labels are returned, the pipeline automatically uses **speaker-aware chunking** — LLM windows break at speaker turns instead of fixed 20-second boundaries.
+
+## Visual frame analysis (optional)
+
+Requires the `[vision]` extras and a CUDA GPU (~6 GB VRAM) for reasonable speed:
 
 ```bash
-# One JPEG every 2 seconds (adjust fps=1/2 to change interval)
-ffmpeg -y -i input.mp4 -vf "fps=1/2" -q:v 3 frames/frame_%06d.jpg
+pip install -e ".[vision]"
+# .env
+ETE_VISION_ENABLED=true
+ETE_VISION_FRAME_INTERVAL=10   # extract one frame every N seconds
 ```
 
-Typical workflow: align frames to the same time windows as the transcript, cap how many images you send per request, and pick a multimodal model—then budget for **much higher** token usage than text-only runs. This repo intentionally does **not** wire that up by default.
+Uses [memories-s0](https://huggingface.co/Memories-ai/security_model) (Apache 2.0, runs fully locally — no API key). Frame descriptions are injected as `[VISUAL CONTEXT]` blocks into LLM prompt windows to enrich event descriptions.
 
 ## Security (operational)
 
@@ -139,9 +150,11 @@ OpenRouter charges per model/token. Long videos and small `--window-sec` values 
 
 ## Transcription and speed
 
-Default install includes **faster-whisper**. First run downloads the **small** model (~500MB) into the cache; GPU is used automatically when `torch` sees CUDA.
+Default install uses **faster-whisper** locally. First run downloads the **small** model (~500 MB) into the cache; GPU is used automatically when CUDA is available.
 
-To go faster on long files, set in `.env` e.g. `ETE_WHISPER_MODEL_SIZE=base` or `tiny` (less accurate). For fewer gross word errors (at CPU/GPU cost), try **`medium`** or **`large-v3`**. Set **`ETE_WHISPER_WORD_TIMESTAMPS=true`** if you want per-word timing from Whisper (slightly more compute; pairs with stricter timeline anchoring).
+To go faster on long files, set `ETE_WHISPER_MODEL_SIZE=base` or `tiny` in `.env` (less accurate). For fewer word errors at the cost of more compute, try `medium` or `large-v3`. Set `ETE_WHISPER_WORD_TIMESTAMPS=true` for per-word timing.
+
+For cloud-based transcription, see the **Transcription backends** section above.
 
 ### ASR limits (names and proper nouns)
 

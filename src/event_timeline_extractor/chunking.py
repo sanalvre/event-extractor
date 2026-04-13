@@ -94,13 +94,7 @@ def chunk_segments(
         buf_end = max(buf_end, seg.end)
         if buf_end - cur_start >= window_sec:
             flush()
-    if buf:
-        text = "\n".join(format_segment_line(s) for s in buf).strip()
-        frames = _frames_in_range(frame_paths_by_time, cur_start, buf_end)
-        vis_ctx = _vision_context_in_range(vision_map, cur_start, buf_end)
-        windows.append(
-            TimeWindow(start=cur_start, end=buf_end, text=text, frame_paths=frames, vision_context=vis_ctx)
-        )
+    flush()
     return windows
 
 
