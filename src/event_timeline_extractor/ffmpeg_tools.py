@@ -6,26 +6,39 @@ import json
 import subprocess
 from pathlib import Path
 
+from event_timeline_extractor.resilience import retry_call
+
 
 class FFmpegError(RuntimeError):
     pass
 
 
+_FFMPEG_ATTEMPTS = 2
+_FFMPEG_RETRY_DELAY_SEC = 0.5
+
+
 def _run_ffmpeg(argv: list[str], *, timeout_sec: int = 7200) -> None:
     try:
-        subprocess.run(
-            argv,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=timeout_sec,
+        retry_call(
+            lambda: subprocess.run(
+                argv,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout_sec,
+            ),
+            attempts=_FFMPEG_ATTEMPTS,
+            delay_seconds=_FFMPEG_RETRY_DELAY_SEC,
+            should_retry=lambda exc: isinstance(exc, subprocess.TimeoutExpired),
         )
     except FileNotFoundError as e:
         raise FFmpegError(
             "ffmpeg not found on PATH. Install ffmpeg and add it to PATH."
         ) from e
     except subprocess.TimeoutExpired as e:
-        raise FFmpegError("ffmpeg timed out.") from e
+        raise FFmpegError(
+            f"ffmpeg timed out after {timeout_sec}s (retried {_FFMPEG_ATTEMPTS} times)."
+        ) from e
     except subprocess.CalledProcessError as e:
         err = (e.stderr or e.stdout or "").strip()
         raise FFmpegError(f"ffmpeg failed: {err[:4000]}") from e
@@ -44,15 +57,24 @@ def probe_duration_seconds(media_path: Path, *, ffprobe_bin: str = "ffprobe") ->
         str(media_path),
     ]
     try:
-        p = subprocess.run(
-            argv,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=120,
+        p = retry_call(
+            lambda: subprocess.run(
+                argv,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=120,
+            ),
+            attempts=_FFMPEG_ATTEMPTS,
+            delay_seconds=_FFMPEG_RETRY_DELAY_SEC,
+            should_retry=lambda exc: isinstance(exc, subprocess.TimeoutExpired),
         )
     except FileNotFoundError as e:
         raise FFmpegError("ffprobe not found on PATH.") from e
+    except subprocess.TimeoutExpired as e:
+        raise FFmpegError(
+            f"ffprobe timed out after 120s (retried {_FFMPEG_ATTEMPTS} times)."
+        ) from e
     except subprocess.CalledProcessError as e:
         raise FFmpegError(f"ffprobe failed: {(e.stderr or '')[:2000]}") from e
     data = json.loads(p.stdout)

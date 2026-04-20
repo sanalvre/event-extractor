@@ -11,7 +11,9 @@ from event_timeline_extractor.pipeline import PipelineInput, run_pipeline
 from tests.conftest import make_tiny_mp4
 
 
-def test_pipeline_on_ffmpeg_extracted_middle_segment(tmp_path, ffmpeg_available, monkeypatch) -> None:
+def test_pipeline_on_ffmpeg_extracted_middle_segment(
+    tmp_path, ffmpeg_available, monkeypatch
+) -> None:
     """A \"different part\" of the same synthetic video: full clip → extract seconds 4–7 → pipeline.
 
     The web UI only downloads **from the start** of a YouTube video. For a **mid-file** cut,
@@ -56,6 +58,8 @@ def test_pipeline_on_ffmpeg_extracted_middle_segment(tmp_path, ffmpeg_available,
     )
     assert result.events
     assert result.meta
-    assert result.meta.get("asr_model") == settings.ete_whisper_model_size
+    assert result.meta.get("input_source") == "file"
+    assert result.meta.get("transcriber") == "stub"
+    assert result.meta.get("asr_model") == "stub"
     assert result.meta.get("diarization") == "none"
     assert result.meta.get("dry_run") is True

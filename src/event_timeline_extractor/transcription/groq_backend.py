@@ -27,12 +27,15 @@ from pathlib import Path
 
 import httpx
 
+from event_timeline_extractor.resilience import retry_call
 from event_timeline_extractor.transcription.base import TranscriptSegment
 
 logger = logging.getLogger(__name__)
 
 _GROQ_SIZE_LIMIT_BYTES = 25 * 1024 * 1024  # 25 MB
 _GROQ_TIMEOUT_SEC = 300.0
+_GROQ_ATTEMPTS = 3
+_GROQ_RETRY_DELAY_SEC = 1.0
 
 
 class GroqTranscriber:
@@ -86,17 +89,34 @@ class GroqTranscriber:
         )
 
         with wav_path.open("rb") as audio_file:
-            with httpx.Client(timeout=_GROQ_TIMEOUT_SEC) as client:
-                response = client.post(
-                    self._endpoint,
-                    headers={"Authorization": f"Bearer {self._api_key}"},
-                    files={"file": (wav_path.name, audio_file, "audio/wav")},
-                    data={
-                        "model": self._model,
-                        "response_format": "verbose_json",
-                        "language": "en",
-                    },
+            def _post() -> httpx.Response:
+                audio_file.seek(0)
+                with httpx.Client(timeout=_GROQ_TIMEOUT_SEC) as client:
+                    return client.post(
+                        self._endpoint,
+                        headers={"Authorization": f"Bearer {self._api_key}"},
+                        files={"file": (wav_path.name, audio_file, "audio/wav")},
+                        data={
+                            "model": self._model,
+                            "response_format": "verbose_json",
+                            "language": "en",
+                        },
+                    )
+
+            try:
+                response = retry_call(
+                    _post,
+                    attempts=_GROQ_ATTEMPTS,
+                    delay_seconds=_GROQ_RETRY_DELAY_SEC,
+                    should_retry=lambda exc: isinstance(
+                        exc,
+                        (httpx.TimeoutException, httpx.NetworkError),
+                    ),
                 )
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                raise RuntimeError(
+                    f"Groq transcription request failed after {_GROQ_ATTEMPTS} attempt(s): {exc}"
+                ) from exc
 
         if response.status_code >= 400:
             snippet = response.text[:600]

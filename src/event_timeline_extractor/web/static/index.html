@@ -17,9 +17,9 @@
       <header class="head">
         <h1 class="title">Event Timeline Extractor</h1>
         <p class="lede">
-          Turn a recording into a structured event timeline—QA, coaching, or review. Paste a
-          YouTube link; the server transcribes (Whisper-class ASR) and summarizes to JSON (LLM via
-          OpenRouter on the server).
+          Turn a long YouTube video into a structured event timeline for QA, coaching, or review.
+          Paste a YouTube link and the server will transcribe it, break it into timestamped
+          windows, and return grounded JSON events.
         </p>
       </header>
 
@@ -31,15 +31,15 @@
             type="url"
             inputmode="url"
             autocomplete="off"
-            placeholder="https://www.youtube.com/watch?v=…"
+            placeholder="https://www.youtube.com/watch?v=..."
           />
           <button id="go" type="button" class="btn">Run</button>
         </div>
 
         <label class="label" for="durationMode">How much of the video to process</label>
         <p class="hint">
-          Shorter clips download and run faster. Full video uses the entire length (subject to
-          server limits on the web API).
+          Shorter clips download and run faster. Full video processes the whole YouTube source,
+          subject to the current web API limits.
         </p>
         <select id="durationMode">
           <option value="full">Full video</option>
@@ -48,7 +48,7 @@
           <option value="120">First 2 minutes</option>
           <option value="300">First 5 minutes</option>
           <option value="600">First 10 minutes</option>
-          <option value="custom">Custom seconds…</option>
+          <option value="custom">Custom seconds...</option>
         </select>
         <div id="customDurationWrap" class="custom-wrap" hidden>
           <label class="label" for="maxsec">Seconds from the start</label>
@@ -64,12 +64,25 @@
 
         <label class="check">
           <input id="dry" type="checkbox" />
-          Dry run (no OpenRouter; placeholder labels from transcript windows)
+          Dry run (skip OpenRouter and preview transcript-window output)
         </label>
       </section>
 
       <div id="status" class="status" hidden></div>
-      <pre id="out" class="out" hidden></pre>
+
+      <section id="results" class="results" hidden>
+        <div class="results-head">
+          <div>
+            <p class="eyebrow">Review View</p>
+            <h2 class="results-title">Timeline</h2>
+          </div>
+          <button id="toggleRaw" type="button" class="btn btn-secondary">Show raw JSON</button>
+        </div>
+
+        <div id="summary" class="summary"></div>
+        <div id="timeline" class="timeline"></div>
+        <pre id="out" class="out" hidden></pre>
+      </section>
     </div>
     <script src="/static/app.js" defer></script>
   </body>

@@ -37,9 +37,9 @@ def test_prompt_includes_visual_context_when_present(mock_cls) -> None:
         TimeWindow(
             start=0.0,
             end=10.0,
-            text="[00:00] Officer exits vehicle.",
+            text="[00:00] seg-000001 Officer exits vehicle.",
             frame_paths=[],
-            vision_context="00:00 — Officer approaches vehicle.\n00:05 — Driver exits.",
+            vision_context="00:00 - Officer approaches vehicle.\n00:05 - Driver exits.",
         )
     ]
     TimelineSynthesizer(_make_settings()).synthesize(windows)
@@ -59,7 +59,7 @@ def test_prompt_omits_visual_context_block_when_empty(mock_cls) -> None:
         TimeWindow(
             start=0.0,
             end=10.0,
-            text="[00:00] Hello there.",
+            text="[00:00] seg-000001 Hello there.",
             frame_paths=[],
             vision_context="",
         )
@@ -77,13 +77,12 @@ def test_prompt_includes_vision_hint_in_instructions_when_context_present(mock_c
     mock_cls.return_value = _mock_client_returning(_EMPTY_EVENTS)
 
     windows = [
-        TimeWindow(0.0, 5.0, "[00:00] Text.", [], vision_context="00:00 — Scene here.")
+        TimeWindow(0.0, 5.0, "[00:00] seg-000001 Text.", [], vision_context="00:00 - Scene here.")
     ]
     TimelineSynthesizer(_make_settings()).synthesize(windows)
 
     payload = mock_cls.return_value.post.call_args[1]["json"]
     user_content = payload["messages"][1]["content"]
-    # Hint text should appear in the preamble alongside the [VISUAL CONTEXT] block
     assert "frame-level scene descriptions" in user_content
 
 
@@ -92,7 +91,7 @@ def test_prompt_omits_vision_hint_when_no_context(mock_cls) -> None:
     """When no windows have vision_context, the preamble should NOT include the vision hint."""
     mock_cls.return_value = _mock_client_returning(_EMPTY_EVENTS)
 
-    windows = [TimeWindow(0.0, 5.0, "[00:00] Text.", [], vision_context="")]
+    windows = [TimeWindow(0.0, 5.0, "[00:00] seg-000001 Text.", [], vision_context="")]
     TimelineSynthesizer(_make_settings()).synthesize(windows)
 
     payload = mock_cls.return_value.post.call_args[1]["json"]

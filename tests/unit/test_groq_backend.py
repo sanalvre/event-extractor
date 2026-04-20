@@ -5,10 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from event_timeline_extractor.transcription.groq_backend import GroqTranscriber
-
 
 # ---------------------------------------------------------------------------
 # Construction
@@ -165,3 +165,23 @@ def test_transcribe_sends_correct_model(mock_cls, tmp_path: Path) -> None:
     data_arg = mock_cls.return_value.post.call_args[1]["data"]
     assert data_arg["model"] == "whisper-large-v3-turbo"
     assert data_arg["response_format"] == "verbose_json"
+
+
+@patch("event_timeline_extractor.transcription.groq_backend.httpx.Client")
+def test_transcribe_retries_transient_network_error(mock_cls, tmp_path: Path) -> None:
+    wav = tmp_path / "audio.wav"
+    wav.write_bytes(b"\x00" * 100)
+
+    first_client = MagicMock()
+    first_client.__enter__.return_value = first_client
+    first_client.__exit__.return_value = None
+    first_client.post.side_effect = httpx.ReadTimeout("slow")
+
+    second_client = _make_groq_response([{"start": 0.0, "end": 1.0, "text": " Retry worked."}])
+    mock_cls.side_effect = [first_client, second_client]
+
+    result = GroqTranscriber(api_key="gsk_test").transcribe(wav)
+
+    assert len(result) == 1
+    assert result[0].text == "Retry worked."
+    assert first_client.post.call_count == 1

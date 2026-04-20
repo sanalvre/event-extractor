@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
 from event_timeline_extractor.transcription.memories_backend import (
     MemoriesTranscriber,
     _raise_for_status,
 )
-
 
 # ---------------------------------------------------------------------------
 # Construction
@@ -122,7 +122,12 @@ def test_transcribe_full_flow(mock_cls, tmp_path: Path) -> None:
     wav.write_bytes(b"\x00" * 100)
 
     items = [
-        {"text": " Officer asks driver to exit.", "start_time": 0.5, "end_time": 3.0, "speaker": "SPEAKER_00"},
+        {
+            "text": " Officer asks driver to exit.",
+            "start_time": 0.5,
+            "end_time": 3.0,
+            "speaker": "SPEAKER_00",
+        },
         {"text": " Driver complies.", "start_time": 3.1, "end_time": 5.0, "speaker": "SPEAKER_01"},
     ]
     mock_cls.return_value = _make_mock_client("re_test_asset", items)
@@ -167,3 +172,35 @@ def test_transcribe_raises_on_upload_error(mock_cls, tmp_path: Path) -> None:
 
     with pytest.raises(RuntimeError, match="HTTP 402"):
         MemoriesTranscriber(api_key="sk-mai-test").transcribe(wav)
+
+
+@patch("event_timeline_extractor.transcription.memories_backend.httpx.Client")
+def test_transcribe_retries_transient_upload_error(mock_cls, tmp_path: Path) -> None:
+    wav = tmp_path / "audio.wav"
+    wav.write_bytes(b"\x00" * 100)
+
+    first_client = MagicMock()
+    first_client.__enter__.return_value = first_client
+    first_client.__exit__.return_value = None
+    first_client.post.side_effect = httpx.ConnectError("offline")
+
+    upload_resp = MagicMock()
+    upload_resp.status_code = 200
+    upload_resp.json.return_value = {"data": {"asset_id": "re_test_asset"}}
+    second_client = MagicMock()
+    second_client.__enter__.return_value = second_client
+    second_client.__exit__.return_value = None
+    second_client.post.return_value = upload_resp
+
+    transcribe_resp = MagicMock()
+    transcribe_resp.status_code = 200
+    transcribe_resp.json.return_value = {"data": {"items": []}}
+    third_client = MagicMock()
+    third_client.__enter__.return_value = third_client
+    third_client.__exit__.return_value = None
+    third_client.post.return_value = transcribe_resp
+    mock_cls.side_effect = [first_client, second_client, third_client]
+
+    MemoriesTranscriber(api_key="sk-mai-test", speaker=True).transcribe(wav)
+
+    assert first_client.post.call_count == 1

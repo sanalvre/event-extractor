@@ -17,18 +17,21 @@ def test_chunk_segments_empty() -> None:
 
 
 def test_format_segment_line_speaker() -> None:
-    line = format_segment_line(TranscriptSegment(65.0, 70.0, "hello", speaker="SPEAKER_00"))
-    assert line == "[01:05] SPEAKER_00: hello"
+    line = format_segment_line(
+        TranscriptSegment(65.0, 70.0, "hello", speaker="SPEAKER_00", segment_id="seg-000001")
+    )
+    assert line == "[01:05] seg-000001 SPEAKER_00: hello"
 
 
 def test_chunk_segments_merges() -> None:
     segs = [
-        TranscriptSegment(0, 5, "a"),
-        TranscriptSegment(5, 10, "b"),
+        TranscriptSegment(0, 5, "a", segment_id="seg-000001"),
+        TranscriptSegment(5, 10, "b", segment_id="seg-000002"),
     ]
     w = chunk_segments(segs, window_sec=100)
     assert len(w) == 1
-    assert "[00:00] a" in w[0].text and "[00:05] b" in w[0].text
+    assert "[00:00] seg-000001 a" in w[0].text and "[00:05] seg-000002 b" in w[0].text
+    assert w[0].source_segment_ids == ["seg-000001", "seg-000002"]
 
 
 def test_attach_frames() -> None:

@@ -22,9 +22,9 @@ def ytdlp_available() -> bool:
 
 
 @pytest.fixture
-def web_client() -> TestClient:
+def web_client(tmp_path) -> TestClient:
     """Shared FastAPI test client (same app factory as integration tests)."""
-    return TestClient(create_app())
+    return TestClient(create_app(jobs_root=tmp_path / "jobs"))
 
 
 def make_tiny_mp4(path, *, duration_sec: float = 1.0) -> None:

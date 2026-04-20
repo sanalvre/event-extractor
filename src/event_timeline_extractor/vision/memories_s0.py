@@ -69,7 +69,7 @@ class MemoriesS0Analyzer:
 
         self._ensure_loaded()
         results: list[FrameDescription] = []
-        for path, ts in zip(frame_paths, timestamps):
+        for path, ts in zip(frame_paths, timestamps, strict=True):
             desc = self._describe_frame(Path(path))
             results.append(FrameDescription(timestamp=ts, description=desc))
             logger.debug("Frame %.1fs → %s", ts, desc[:80])

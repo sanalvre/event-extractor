@@ -59,6 +59,28 @@ def test_run_ytdlp_download_success(mock_run, tmp_path: Path) -> None:
     assert p.name == "source.mp4"
 
 
+@patch("event_timeline_extractor.fetch.subprocess.run")
+def test_run_ytdlp_download_retries_timeout(mock_run, tmp_path: Path) -> None:
+    mock_run.side_effect = [
+        subprocess.TimeoutExpired(cmd=["yt-dlp"], timeout=10),
+        subprocess.CompletedProcess(args=[], returncode=0),
+    ]
+    (tmp_path / "source.mp4").write_bytes(b"x")
+
+    p = run_ytdlp_download("https://youtu.be/x", tmp_path, timeout_sec=10)
+
+    assert p.name == "source.mp4"
+    assert mock_run.call_count == 2
+
+
+@patch("event_timeline_extractor.fetch.subprocess.run")
+def test_run_ytdlp_download_timeout_message_after_retries(mock_run, tmp_path: Path) -> None:
+    mock_run.side_effect = subprocess.TimeoutExpired(cmd=["yt-dlp"], timeout=7)
+
+    with pytest.raises(FetchError, match="timed out after 7s"):
+        run_ytdlp_download("https://youtu.be/x", tmp_path, timeout_sec=7)
+
+
 @patch("event_timeline_extractor.fetch.subprocess.run", side_effect=FileNotFoundError)
 def test_run_ytdlp_missing_binary(_, tmp_path: Path) -> None:
     with pytest.raises(FetchError, match="Could not run yt-dlp"):

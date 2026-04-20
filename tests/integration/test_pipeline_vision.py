@@ -7,10 +7,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tests.conftest import make_tiny_mp4
 from event_timeline_extractor.config import Settings
 from event_timeline_extractor.pipeline import PipelineInput, _run_vision_analysis, run_pipeline
-
+from tests.conftest import make_tiny_mp4
 
 # ---------------------------------------------------------------------------
 # _run_vision_analysis unit-style test (mocked VLM)

@@ -21,4 +21,8 @@ temp_media/
 .ete_pilot/
 .ete_work/
 .ete_sim/
+.claude/
+.coverage
+.coverage.*
+htmlcov/
 pilot20.json

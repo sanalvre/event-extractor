@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
+from event_timeline_extractor.resilience import retry_call
+
 _YOUTUBE_HOSTS = frozenset(
     {
         "youtube.com",
@@ -24,8 +26,12 @@ class FetchError(RuntimeError):
     pass
 
 
+_YTDLP_ATTEMPTS = 2
+_YTDLP_RETRY_DELAY_SEC = 1.0
+
+
 def resolve_ytdlp_invocation() -> list[str]:
-    """How to invoke yt-dlp: console script next to ``sys.executable``, else ``python -m yt_dlp``."""
+    """Resolve how to invoke yt-dlp for this environment."""
     scripts = Path(sys.executable).resolve().parent
     for name in ("yt-dlp.exe", "yt-dlp"):
         cand = scripts / name
@@ -117,13 +123,21 @@ def run_ytdlp_download(
         ytdlp_invocation=inv,
         download_sections=download_sections,
     )
-    try:
+    def _invoke() -> None:
         subprocess.run(
             argv,
             check=True,
             capture_output=True,
             text=True,
             timeout=timeout_sec,
+        )
+
+    try:
+        retry_call(
+            _invoke,
+            attempts=_YTDLP_ATTEMPTS,
+            delay_seconds=_YTDLP_RETRY_DELAY_SEC,
+            should_retry=lambda exc: isinstance(exc, subprocess.TimeoutExpired),
         )
     except FileNotFoundError as e:
         hint = (
@@ -134,7 +148,9 @@ def run_ytdlp_download(
             f"Could not run yt-dlp ({inv[0]!r}). {hint}"
         ) from e
     except subprocess.TimeoutExpired as e:
-        raise FetchError("yt-dlp timed out.") from e
+        raise FetchError(
+            f"yt-dlp timed out after {timeout_sec}s (retried {_YTDLP_ATTEMPTS} times)."
+        ) from e
     except subprocess.CalledProcessError as e:
         err = (e.stderr or e.stdout or "").strip()
         raise FetchError(f"yt-dlp failed (exit {e.returncode}): {err[:2000]}") from e

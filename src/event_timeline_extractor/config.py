@@ -28,7 +28,8 @@ class Settings(BaseSettings):
     ete_whisper_vad: bool = True
     # Finer alignment for time anchoring; slightly more compute.
     ete_whisper_word_timestamps: bool = False
-    # Force Whisper to this language (ISO 639-1). None = auto-detect (can mis-detect on short clips).
+    # Force Whisper to this language (ISO 639-1).
+    # None = auto-detect, which can mis-detect on short clips.
     ete_whisper_language: str | None = "en"
     # none | pyannote — optional speaker diarization (requires extras + HF_TOKEN).
     ete_diarization: str = "none"
@@ -40,6 +41,12 @@ class Settings(BaseSettings):
     ete_vision_enabled: bool = False
     # Extract one frame every N seconds for visual analysis.
     ete_vision_frame_interval: int = 10
+    # Preferred transcript windows per extraction request.
+    ete_extraction_batch_size: int = 8
+    # Soft target for how many extraction batches a long run should produce.
+    ete_extraction_max_batches: int = 24
+    # Hard cap on transcript windows included in any single extraction request.
+    ete_extraction_max_batch_size: int = 16
     # memories.ai transcription backend (ETE_TRANSCRIBER=memories).
     # API key from https://api-platform.memories.ai — format: sk-mai-...
     memories_api_key: SecretStr | None = None

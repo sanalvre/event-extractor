@@ -14,6 +14,7 @@ class TimeWindow:
     text: str
     frame_paths: list[str]
     vision_context: str = ""
+    source_segment_ids: list[str] | None = None
 
 
 def format_mmss(seconds: float) -> str:
@@ -27,8 +28,9 @@ def format_mmss(seconds: float) -> str:
 def format_segment_line(seg: TranscriptSegment) -> str:
     """One transcript line per segment: ``[MM:SS] SPEAKER: text`` (speaker optional)."""
     ts = format_mmss(seg.start)
+    seg_id = f"{seg.segment_id} " if seg.segment_id else ""
     prefix = f"{seg.speaker}: " if seg.speaker else ""
-    return f"[{ts}] {prefix}{seg.text.strip()}"
+    return f"[{ts}] {seg_id}{prefix}{seg.text.strip()}"
 
 
 def chunk_segments(
@@ -67,8 +69,16 @@ def chunk_segments(
         text = "\n".join(format_segment_line(s) for s in buf).strip()
         frames = _frames_in_range(frame_paths_by_time, cur_start, buf_end)
         vis_ctx = _vision_context_in_range(vision_map, cur_start, buf_end)
+        source_segment_ids = [s.segment_id for s in buf if s.segment_id]
         windows.append(
-            TimeWindow(start=cur_start, end=buf_end, text=text, frame_paths=frames, vision_context=vis_ctx)
+            TimeWindow(
+                start=cur_start,
+                end=buf_end,
+                text=text,
+                frame_paths=frames,
+                vision_context=vis_ctx,
+                source_segment_ids=source_segment_ids or None,
+            )
         )
         buf = []
 

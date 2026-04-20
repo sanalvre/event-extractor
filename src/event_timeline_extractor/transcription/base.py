@@ -11,6 +11,7 @@ class TranscriptSegment:
     end: float
     text: str
     speaker: str | None = None
+    segment_id: str | None = None
 
 
 @runtime_checkable

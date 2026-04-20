@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "event-timeline-extractor"
-version = "0.1.0"
-description = "Searchable event timelines from recordings (Whisper + LLM). QA, coaching, risk review. CLI & local web UI."
+version = "0.3.0"
+description = "YouTube-first grounded event timeline extraction with a CLI and local web UI."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

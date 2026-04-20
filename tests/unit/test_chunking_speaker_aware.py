@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from event_timeline_extractor.chunking import TimeWindow, chunk_segments
+from event_timeline_extractor.chunking import chunk_segments
 from event_timeline_extractor.transcription.base import TranscriptSegment
 
 

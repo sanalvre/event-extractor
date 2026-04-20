@@ -10,7 +10,6 @@ import pytest
 
 from event_timeline_extractor.vision.memories_s0 import FrameDescription, MemoriesS0Analyzer
 
-
 # ---------------------------------------------------------------------------
 # FrameDescription dataclass
 # ---------------------------------------------------------------------------

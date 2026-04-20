@@ -30,6 +30,8 @@ jobs:
       - name: Pytest
         run: pytest
 
-      - name: Block committed .env
+      - name: Block committed local-only files
         run: |
           if git ls-files | grep -qx '\.env'; then echo 'Do not commit .env'; exit 1; fi
+          if git ls-files | grep -q '^\.ete_pilot/'; then echo 'Do not commit .ete_pilot artifacts'; exit 1; fi
+          if git ls-files | grep -q '^\.claude/'; then echo 'Do not commit .claude workspace files'; exit 1; fi

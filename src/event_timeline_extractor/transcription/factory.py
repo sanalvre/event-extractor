@@ -23,7 +23,8 @@ def get_transcriber(settings: Settings) -> Transcriber:
 
     Supported values for ETE_TRANSCRIBER:
     - ``faster_whisper`` (default) — local Whisper via faster-whisper
-    - ``memories``                 — memories.ai cloud API with built-in diarization (requires MEMORIES_API_KEY)
+    - ``memories``                 — memories.ai cloud API with built-in diarization
+                                      (requires MEMORIES_API_KEY)
     - ``groq``                     — Groq cloud API (189× real-time, requires GROQ_API_KEY)
     - ``stub`` / ``fake`` / ``test`` — deterministic placeholder for tests
     """
@@ -34,7 +35,9 @@ def get_transcriber(settings: Settings) -> Transcriber:
     if name in ("faster_whisper", "faster-whisper", "whisper"):
         return FasterWhisperTranscriber(settings)
     if name == "memories":
-        from event_timeline_extractor.transcription.memories_backend import MemoriesTranscriber  # noqa: PLC0415
+        from event_timeline_extractor.transcription.memories_backend import (
+            MemoriesTranscriber,  # noqa: PLC0415
+        )
 
         key = settings.memories_key_plain()
         if not key:
@@ -51,7 +54,9 @@ def get_transcriber(settings: Settings) -> Transcriber:
             base_url=_MEMORIES_BASE_URL,
         )
     if name == "groq":
-        from event_timeline_extractor.transcription.groq_backend import GroqTranscriber  # noqa: PLC0415
+        from event_timeline_extractor.transcription.groq_backend import (
+            GroqTranscriber,  # noqa: PLC0415
+        )
 
         key = settings.groq_key_plain()
         if not key:
